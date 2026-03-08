@@ -57,3 +57,20 @@ npm run test:failed-debug
 
 - 某些票種有業務規則限制（如團體票、縣民票、學生票等），測試腳本會記錄阻擋原因。
 - 若網站規則調整，請更新對應測試條件與測試資料。
+
+## GitHub Tag 自動打包 EXE
+
+此專案已設定 GitHub Actions：
+
+- 觸發條件：`push tag`，且 tag 名稱符合 `v*`（例如 `v1.0.0`）
+- 產物：Windows 自解壓執行檔 `matsuebs_test-<tag>-win-x64.exe`
+- 發佈位置：該 tag 的 GitHub Release Assets
+
+### 如何觸發
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+下載 EXE 後，解壓到資料夾並執行 `run-special-rules.cmd` 即可跑特殊規則測試。
