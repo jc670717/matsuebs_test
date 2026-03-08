@@ -1,0 +1,23 @@
+{
+  "name": "matsuebs_test",
+  "version": "1.0.0",
+  "description": "Playwright end-to-end tests for matsuebs booking flows",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test --output ./test-results",
+    "test:purchase-flow": "playwright test tests/purchase-flow.spec.js --output ./test-results",
+    "test:ticket-types": "playwright test tests/ticket-types.spec.js --output ./test-results",
+    "test:special-rules": "playwright test tests/ticket-types-special-rules.spec.js --output ./test-results",
+    "test:failed-debug": "playwright test tests/ticket-types-failed-debug.spec.js --output ./test-results"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "matsuebs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}
