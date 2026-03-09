@@ -8,7 +8,8 @@
     "test:purchase-flow": "playwright test tests/purchase-flow.spec.js --output ./test-results",
     "test:ticket-types": "playwright test tests/ticket-types.spec.js --output ./test-results",
     "test:special-rules": "playwright test tests/ticket-types-special-rules.spec.js --output ./test-results",
-    "test:failed-debug": "playwright test tests/ticket-types-failed-debug.spec.js --output ./test-results"
+    "test:failed-debug": "playwright test tests/ticket-types-failed-debug.spec.js --output ./test-results",
+    "test:special-rules:headed": "playwright test tests/ticket-types-special-rules.spec.js --output ./test-results --headed --workers=1"
   },
   "keywords": [
     "playwright",

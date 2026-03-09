@@ -88,7 +88,10 @@ async function submitAndGetResult(page) {
   await page.waitForTimeout(1200);
 
   const confirm = page.getByRole("heading", { name: /確認訂單內容/ });
-  if (await confirm.isVisible().catch(() => false)) return { status: "PASS", detail: "" };
+  const onConfirmPage = /\/Home\/confirmPassenger/i.test(page.url());
+  if (onConfirmPage || await confirm.isVisible().catch(() => false)) {
+    return { status: "PASS", detail: onConfirmPage ? `URL=${page.url()}` : "" };
+  }
 
   const opDialog = page.getByRole("dialog", { name: /操作錯誤/ });
   if (await opDialog.isVisible().catch(() => false)) {
@@ -167,6 +170,7 @@ test("special fare rules by requested ages and pairing", async ({ page }) => {
     }
   }
 });
+
 
 
 
