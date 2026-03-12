@@ -1,0 +1,64 @@
+name: Build Windows EXE On Tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (portable)
+        shell: pwsh
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: 0
+        run: npx playwright install chromium
+
+      - name: Prepare package folder
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force package\app | Out-Null
+          Copy-Item tests -Destination package\app\tests -Recurse -Force
+          Copy-Item node_modules -Destination package\app\node_modules -Recurse -Force
+          Copy-Item package.json -Destination package\app\package.json -Force
+          Copy-Item package-lock.json -Destination package\app\package-lock.json -Force
+          Copy-Item playwright.config.js -Destination package\app\playwright.config.js -Force
+          Copy-Item run-special-rules.cmd -Destination package\app\run-special-rules.cmd -Force
+
+          $nodePath = (Get-Command node).Source
+          Copy-Item $nodePath -Destination package\app\node.exe -Force
+
+      - name: Build self-extracting EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.ref_name }}'
+          $archive = "package\matsuebs_test-$tag-win-x64.7z"
+          $exe = "package\matsuebs_test-$tag-win-x64.exe"
+          7z a $archive .\package\app\* | Out-Host
+          7z a -sfx $exe $archive | Out-Host
+          Write-Output "ASSET_PATH=$exe" >> $env:GITHUB_ENV
+
+      - name: Upload EXE to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ASSET_PATH }}
+          generate_release_notes: true
