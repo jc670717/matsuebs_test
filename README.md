@@ -1,6 +1,9 @@
 # matsuebs_test
 
-Playwright 自動化測試專案，涵蓋馬祖海上交通訂位購票流程與票種規則。
+Playwright 自動化測試專案，目前保留兩支實際使用中的測試：
+
+- `island`: 南竿 -> 北竿票種規則測試
+- `taima`: 基隆 -> 南竿臥鋪訂位流程測試
 
 ## 環境需求
 
@@ -18,45 +21,37 @@ npx playwright install chromium
 ## 可用指令
 
 ```bash
-# 全部測試
-npm test
-
-# 全流程：選班次 -> 同意條款 -> 填資料 -> 信用卡付款跳轉
-npm run test:purchase-flow
-
-# 掃描所有票種（報表模式）
-npm run test:ticket-types
-
-# 特殊規則（全票/兒童/嬰幼兒/敬老/愛心/愛心陪伴）
+# island：南竿 -> 北竿票種規則
 npm run test:island
 
-# 專門檢查失敗票種並輸出截圖
-npm run test:failed-debug
+# island：headed 模式
+npm run test:island:headed
+
+# taima：基隆 -> 南竿，臥鋪流程
+npm run test:taima
 ```
 
 ## 測試資料
 
 - 預設姓名：`測試員`
 - 預設 email：`jc670717@gmail.com`
-- 預設路線：南竿 -> 北竿
-- 預設日期：10 天後
-
-可用環境變數覆蓋（僅部分腳本使用）：
-
-- `MATSUEBS_ID`
-- `MATSUEBS_NAME`
+- `island` 預設路線：南竿 -> 北竿
+- `taima` 預設路線：基隆 -> 南竿
+- `island` 預設日期：10 天後
+- `taima` 預設日期：3 天後
 
 ## 專案結構
 
-- `tests/`: Playwright 測試腳本
+- `tests/island.js`: island 測試
+- `tests/taima.js`: taima 測試
 - `playwright.config.js`: Playwright 設定
 - `test-results/`: 測試執行輸出（已加入 `.gitignore`）
 - `artifacts/`: 除錯截圖輸出（已加入 `.gitignore`）
 
 ## 注意事項
 
-- 某些票種有業務規則限制（如團體票、縣民票、學生票等），測試腳本會記錄阻擋原因。
 - 若網站規則調整，請更新對應測試條件與測試資料。
+- `taima` 會真的透過日期元件選日期，再進行艙位選擇與乘客資料流程。
 
 ## GitHub Tag 自動打包 EXE
 
@@ -73,4 +68,4 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-下載 EXE 後，解壓到資料夾並執行 `run-island.cmd` 即可跑 island 測試。
+下載 EXE 後，解壓到資料夾並執行 `run-island.cmd` 即可跑 `island` 測試。

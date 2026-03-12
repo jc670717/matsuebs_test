@@ -5,10 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "playwright test --output ./test-results",
-    "test:purchase-flow": "playwright test tests/purchase-flow.spec.js --output ./test-results",
-    "test:ticket-types": "playwright test tests/ticket-types.spec.js --output ./test-results",
     "test:island": "playwright test tests/island.js --output ./test-results",
-    "test:failed-debug": "playwright test tests/ticket-types-failed-debug.spec.js --output ./test-results",
     "test:island:headed": "playwright test tests/island.js --output ./test-results --headed --workers=1",
     "test:taima": "playwright test tests/taima.js --output ./test-results"
   },
