@@ -70,7 +70,8 @@ async function goToPassengerForm(page, seatCount) {
   await page.locator('button:has-text("下一步"):visible').last().click();
 
   await expect(page.getByRole("heading", { name: /請填寫訂票資料/ })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole("columnheader", { name: "身分證號" })).toBeVisible({ timeout: 20000 });
+  const passengerTable = page.locator("table").filter({ hasText: "身分證號" }).first();
+  await expect(passengerTable).toBeVisible({ timeout: 20000 });
 }
 
 async function setTicketByContains(row, keyword) {
@@ -121,8 +122,8 @@ test("special fare rules by requested ages and pairing", async ({ page }) => {
   for (const c of cases) {
     await goToPassengerForm(page, c.seatCount);
 
-    const passengerTable = page.locator("table").filter({ has: page.getByRole("columnheader", { name: "身分證號" }) }).first();
-    const orderTable = page.locator("table").filter({ has: page.getByRole("columnheader", { name: "電子信箱" }) }).first();
+    const passengerTable = page.locator("table").filter({ hasText: "身分證號" }).first();
+    const orderTable = page.locator("table").filter({ hasText: "電子信箱" }).first();
 
     const rows = passengerTable.locator("tbody tr");
     const rowCount = await rows.count();
@@ -161,7 +162,7 @@ test("special fare rules by requested ages and pairing", async ({ page }) => {
     await orderInputs.nth(2).fill("jc670717@gmail.com");
 
     const result = await submitAndGetResult(page);
-    console.log(`[RULE] ${c.name} => ${result.status}${result.detail ? ` | ${result.detail}` : ""}`);
+    console.log(`[ISLAND] ${c.name} => ${result.status}${result.detail ? ` | ${result.detail}` : ""}`);
 
     if (result.status !== "PASS") {
       await page.screenshot({ path: `artifacts/ticket_type_debug/rule_${c.name}.png`, fullPage: true });
@@ -170,7 +171,5 @@ test("special fare rules by requested ages and pairing", async ({ page }) => {
     }
   }
 });
-
-
 
 

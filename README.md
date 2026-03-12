@@ -28,7 +28,7 @@ npm run test:purchase-flow
 npm run test:ticket-types
 
 # 特殊規則（全票/兒童/嬰幼兒/敬老/愛心/愛心陪伴）
-npm run test:special-rules
+npm run test:island
 
 # 專門檢查失敗票種並輸出截圖
 npm run test:failed-debug
@@ -73,4 +73,4 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-下載 EXE 後，解壓到資料夾並執行 `run-special-rules.cmd` 即可跑特殊規則測試。
+下載 EXE 後，解壓到資料夾並執行 `run-island.cmd` 即可跑 island 測試。

@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { test, expect } = require("@playwright/test");
 
 test.setTimeout(900_000);
@@ -22,6 +24,50 @@ function generateTaiwanId() {
     + body[4] * 4 + body[5] * 3 + body[6] * 2 + body[7] * 1;
   const check = (10 - (weighted % 10)) % 10;
   return `A${gender}${mid}${check}`;
+}
+
+function ensureDebugDir() {
+  const dir = path.join("artifacts", "ticket_type_debug");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function slugifyName(value) {
+  return String(value)
+    .replace(/[^\w\u4e00-\u9fff-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+async function captureDebugArtifacts(page, label, stage) {
+  const dir = ensureDebugDir();
+  const base = `taima_${slugifyName(label)}_${slugifyName(stage)}`;
+  const screenshotPath = path.join(dir, `${base}.png`);
+  const htmlPath = path.join(dir, `${base}.html`);
+  const summaryPath = path.join(dir, `${base}.txt`);
+
+  const visibleHeadings = await page.locator("h1, h2, h3, h4, h5").evaluateAll((els) =>
+    els.map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).filter(Boolean)
+  ).catch(() => []);
+  const visibleButtons = await page.locator("button:visible").evaluateAll((els) =>
+    els.map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).filter(Boolean)
+  ).catch(() => []);
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const summary = [
+    `stage=${stage}`,
+    `url=${page.url()}`,
+    `title=${await page.title().catch(() => "")}`,
+    `headings=${JSON.stringify(visibleHeadings)}`,
+    `buttons=${JSON.stringify(visibleButtons)}`,
+    "",
+    bodyText.slice(0, 4000),
+  ].join("\n");
+
+  await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+  await fs.promises.writeFile(htmlPath, await page.content().catch(() => ""), "utf8").catch(() => {});
+  await fs.promises.writeFile(summaryPath, summary, "utf8").catch(() => {});
+
+  return { screenshotPath, htmlPath, summaryPath };
 }
 
 async function setInputValue(page, selector, value) {
@@ -49,18 +95,32 @@ async function waitBodyReady(page) {
   });
 }
 
-async function clickRouteNext(page) {
-  await waitBodyReady(page);
-  const nextByRole = page.getByRole("button", { name: /下一步/ }).last();
-  if (await nextByRole.count()) {
-    await nextByRole.click({ force: true });
-    await waitBodyReady(page);
-    return;
+async function selectDateFromPicker(page, targetDate) {
+  const dateInput = page.locator('input[name="StartDate"]').first();
+  const day = String(Number(targetDate.slice(-2)));
+  const picker = page.locator(".datepicker-days").first();
+  const dayCell = page.locator(".datepicker-days td.day:not(.old):not(.new)").filter({ hasText: day }).first();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await dateInput.click({ force: true });
+    await picker.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+    if (await dayCell.isVisible().catch(() => false)) {
+      await dayCell.click({ force: true });
+      await expect(dateInput).toHaveValue(targetDate, { timeout: 10000 });
+      return;
+    }
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(300);
   }
 
-  const nextByText = page.locator('button:has-text("下一步")').last();
-  if (await nextByText.count()) {
-    await nextByText.click({ force: true });
+  throw new Error(`日期元件未成功展開: ${targetDate}`);
+}
+
+async function clickRouteNext(page) {
+  await waitBodyReady(page);
+  const nextVisible = page.locator('button:visible').filter({ hasText: "下一步" }).last();
+  if (await nextVisible.count()) {
+    await nextVisible.click({ force: true });
     await waitBodyReady(page);
     return;
   }
@@ -80,6 +140,22 @@ async function clickRouteNext(page) {
   throw new Error("找不到下一步按鈕");
 }
 
+async function acceptStatementIfPresent(page) {
+  const statement = page.getByRole("heading", { name: /個人資料蒐集前告知聲明/ });
+  if (!await statement.isVisible().catch(() => false)) return;
+
+  await expect(statement).toBeVisible({ timeout: 20000 });
+  await waitBodyReady(page);
+  await page.waitForTimeout(1000);
+  const agree = page.getByRole("checkbox", { name: /Checkbox for following text input/ });
+  const nextButton = page.locator('button:has-text("下一步"):visible').last();
+  await expect(agree).toBeVisible({ timeout: 10000 });
+  await expect(nextButton).toBeVisible({ timeout: 10000 });
+  await agree.check();
+  await expect(agree).toBeChecked({ timeout: 10000 });
+  await nextButton.click();
+}
+
 async function goToPassengerForm(page, seatCount) {
   await page.goto("https://www.matsuebs.com/home/SelectShip", { waitUntil: "domcontentloaded" });
   await waitBodyReady(page);
@@ -91,28 +167,11 @@ async function goToPassengerForm(page, seatCount) {
   await page.selectOption('select[name="StartStation"]', { label: "基隆" });
   await page.selectOption('select[name="EndStation"]', { label: "南竿" });
 
-  // 1) 選完抵達後先等班次出來
-  await expect(async () => {
-    const remainCount = await page.locator("button").filter({ hasText: "剩位" }).count();
-    expect(remainCount).toBeGreaterThanOrEqual(1);
-  }).toPass({ timeout: 20000 });
-
-  // 2) 點日期元件，選指定日期
+  // 1) 點日期元件，選指定日期
   const targetDate = formatDatePlusDays(3);
-  const dateInput = page.locator('input[name="StartDate"]').first();
-  await dateInput.click({ force: true });
-  const day = String(Number(targetDate.slice(-2)));
-  const dayCell = page.locator(".datepicker-days td.day:not(.old):not(.new)").filter({ hasText: day }).first();
-  if (await dayCell.count()) {
-    await dayCell.click({ force: true });
-  } else {
-    await setInputValue(page, 'input[name="StartDate"]', targetDate);
-  }
-  await page.keyboard.press("Escape");
-  await page.locator("body").click({ position: { x: 5, y: 5 } });
-  await expect(dateInput).toHaveValue(targetDate, { timeout: 10000 });
+  await selectDateFromPicker(page, targetDate);
 
-  // 3) 再等班次更新完成
+  // 2) 等班次更新完成
   const processing = page.getByRole("dialog", { name: /處理中/ });
   if (await processing.count()) {
     await processing.first().waitFor({ state: "hidden", timeout: 15000 }).catch(() => {});
@@ -124,40 +183,40 @@ async function goToPassengerForm(page, seatCount) {
     expect(remainCount).toBeGreaterThanOrEqual(1);
   }).toPass({ timeout: 20000 });
 
-  // 4) 選那個班次（第一筆剩位）再下一步
+  // 3) 選那個班次（第一筆剩位）再下一步
   const remainBtn = page.locator("button").filter({ hasText: "剩位" }).first();
   await waitBodyReady(page);
   await remainBtn.click({ force: true });
-  await expect(async () => {
-    const nextCount = await page.getByRole("button", { name: /下一步/ }).count();
-    expect(nextCount).toBeGreaterThanOrEqual(1);
-  }).toPass({ timeout: 10000 });
+  console.log(`[TAIMA] route selected | ${targetDate} 基隆->南竿`);
+  await page.waitForTimeout(500);
   await clickRouteNext(page);
 
-  const statement = page.getByRole("heading", { name: /個人資料蒐集前告知聲明/ });
-  if (await statement.isVisible().catch(() => false)) {
-    await waitBodyReady(page);
-    await page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-      const els = Array.from(document.querySelectorAll("*"));
-      for (const el of els) {
-        if (el.scrollHeight > el.clientHeight) el.scrollTop = el.scrollHeight;
-      }
-    });
-    const agree = page.getByRole("checkbox").first();
-    await agree.check({ force: true });
+  await acceptStatementIfPresent(page);
+
+  const chooseBoatFlightHeading = page.getByRole("heading", { name: /去程船班/ });
+  const passengerHeading = page.getByRole("heading", { name: /請填寫訂票資料/ });
+  await expect(async () => {
+    const onChooseBoatFlight = await chooseBoatFlightHeading.isVisible().catch(() => false);
+    const onPassengerForm = await passengerHeading.isVisible().catch(() => false);
+    expect(onChooseBoatFlight || onPassengerForm).toBeTruthy();
+  }).toPass({ timeout: 20000 });
+
+  if (await chooseBoatFlightHeading.isVisible().catch(() => false)) {
+    const berthHeading = page.getByRole("heading", { name: /臥鋪\(單\)/ });
+    await expect(berthHeading).toBeVisible({ timeout: 20000 });
+    const berthSelect = berthHeading.locator("xpath=following::select[1]").first();
+    await expect(berthSelect).toBeVisible({ timeout: 20000 });
+    console.log(`[TAIMA] berth page reached | seatCount=${seatCount}`);
+    await berthSelect.selectOption(String(seatCount));
+    console.log(`[TAIMA] berth selected | 臥鋪(單)=${seatCount}`);
+    await page.waitForTimeout(500);
     await clickRouteNext(page);
   }
 
-  const berth = page.locator('xpath=//*[contains(normalize-space(.),"臥鋪(單)")]/following::select[1]').first();
-  if (await berth.isVisible().catch(() => false)) {
-    await waitBodyReady(page);
-    await berth.selectOption(String(seatCount));
-    await clickRouteNext(page);
-  }
-
-  await expect(page.getByRole("heading", { name: /請填寫訂票資料/ })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole("columnheader", { name: "身分證號" })).toBeVisible({ timeout: 20000 });
+  await expect(passengerHeading).toBeVisible({ timeout: 40000 });
+  console.log("[TAIMA] passenger form reached");
+  const passengerTable = page.locator("table").filter({ hasText: "身分證號" }).first();
+  await expect(passengerTable).toBeVisible({ timeout: 40000 });
 }
 
 async function setTicketByContains(row, ticketText) {
@@ -199,7 +258,7 @@ async function submitAndGetResult(page) {
   return { status: "UNKNOWN", detail: `URL=${page.url()}` };
 }
 
-test("taima route: keelung to nangan, first sailing, berth single, fare list", async ({ page }) => {
+test("taima route: keelung to nangan, first sailing, berth single, fare list", async ({ browser }) => {
   const cases = [
     { name: "全票", seatCount: 1, mode: "single", ticket: "全票", birth: "19800101" },
     { name: "半票-兒童", seatCount: 1, mode: "single", ticket: "半票-兒童", birth: "20190101" },
@@ -208,17 +267,11 @@ test("taima route: keelung to nangan, first sailing, berth single, fare list", a
   ];
 
   for (const c of cases) {
+    const page = await browser.newPage();
     try {
       await goToPassengerForm(page, c.seatCount);
-    } catch (e) {
-      const msg = String(e && e.message ? e.message : e);
-      console.log(`[TAIMA] ${c.name} => BLOCKED | ${formatDatePlusDays(3)} 基隆->南竿 | ${msg}`);
-      continue;
-    }
-
-    try {
-      const passengerTable = page.locator("table").filter({ has: page.getByRole("columnheader", { name: "身分證號" }) }).first();
-      const orderTable = page.locator("table").filter({ has: page.getByRole("columnheader", { name: "電子信箱" }) }).first();
+      const passengerTable = page.locator("table").filter({ hasText: "身分證號" }).first();
+      const orderTable = page.locator("table").filter({ hasText: "電子信箱" }).first();
 
       const id1 = generateTaiwanId();
       const id2 = generateTaiwanId();
@@ -265,8 +318,11 @@ test("taima route: keelung to nangan, first sailing, berth single, fare list", a
       }
     } catch (e) {
       const msg = String(e && e.message ? e.message : e);
+      const debug = await captureDebugArtifacts(page, c.name, "blocked");
+      console.log(`[TAIMA] ${c.name} debug => ${debug.summaryPath}`);
       console.log(`[TAIMA] ${c.name} => BLOCKED | ${formatDatePlusDays(3)} 基隆->南竿 | ${msg}`);
-      continue;
+    } finally {
+      await page.close().catch(() => {});
     }
   }
 });
