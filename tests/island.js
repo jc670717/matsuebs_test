@@ -58,6 +58,7 @@ async function goToPassengerForm(page, seatCount) {
   }).toPass({ timeout: 20000 });
 
   await remainButtons.nth(9).click();
+  console.log(`[ISLAND] route selected | ${formatDatePlusDays(10)} 南竿->北竿`);
   await page.locator('button:has-text("下一步"):visible').last().click();
 
   await expect(page.getByRole("heading", { name: /個人資料蒐集前告知聲明/ })).toBeVisible({ timeout: 20000 });
@@ -66,10 +67,13 @@ async function goToPassengerForm(page, seatCount) {
 
   const seatHeading = page.getByRole("heading", { name: /一般座位/ });
   await expect(seatHeading).toBeVisible({ timeout: 20000 });
+  console.log(`[ISLAND] seat page reached | seatCount=${seatCount}`);
   await seatHeading.locator("xpath=following::select[1]").first().selectOption(String(seatCount));
+  console.log(`[ISLAND] seat selected | 一般座位=${seatCount}`);
   await page.locator('button:has-text("下一步"):visible').last().click();
 
   await expect(page.getByRole("heading", { name: /請填寫訂票資料/ })).toBeVisible({ timeout: 20000 });
+  console.log("[ISLAND] passenger form reached");
   const passengerTable = page.locator("table").filter({ hasText: "身分證號" }).first();
   await expect(passengerTable).toBeVisible({ timeout: 20000 });
 }
@@ -171,5 +175,4 @@ test("special fare rules by requested ages and pairing", async ({ page }) => {
     }
   }
 });
-
 
